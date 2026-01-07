@@ -1,0 +1,3 @@
+{
+  "python.analysis.extraPaths": ["./ares-sc2/src"]
+}

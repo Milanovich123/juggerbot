@@ -72,6 +72,7 @@ def main():
             for p in Path(MAPS_PATH).glob(f"*.{MAP_FILE_EXT}")
             if p.is_file()
         ]
+        print("Maps found:", map_list)
         if len(map_list) == 0:
             logger.error(f"Can't find maps, please check `MAPS_PATH` in `run.py'")
             logger.info("Trying back up option")
