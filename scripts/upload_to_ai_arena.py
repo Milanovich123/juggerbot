@@ -13,7 +13,7 @@ MY_BOT_NAME: str = "The Juggerbot"
 ZIPFILE_NAME: str = "jugger_bot.zip"
 
 TOKEN: str = environ.get("a6b75b08269f590f6e7dab6cecafb8ebe3f9f6e2")
-BOT_ID: str = environ.get(BOT_ID_ENV)
+BOT_ID: str = environ.get("991")
 URL: str = f"https://aiarena.net/api/bots/{BOT_ID}/"
 
 
