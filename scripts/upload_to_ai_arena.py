@@ -9,10 +9,10 @@ API_TOKEN_ENV: str = "UPLOAD_API_TOKEN"
 BOT_ID_ENV: str = "UPLOAD_BOT_ID"
 CONFIG_FILE: str = "config.yml"
 AUTO_UPLOAD_TO_AIARENA: str = "AutoUploadToAiarena"
-MY_BOT_NAME: str = "MyBotName"
-ZIPFILE_NAME: str = "bot.zip"
+MY_BOT_NAME: str = "The Juggerbot"
+ZIPFILE_NAME: str = "jugger_bot.zip"
 
-TOKEN: str = environ.get(API_TOKEN_ENV)
+TOKEN: str = environ.get("a6b75b08269f590f6e7dab6cecafb8ebe3f9f6e2")
 BOT_ID: str = environ.get(BOT_ID_ENV)
 URL: str = f"https://aiarena.net/api/bots/{BOT_ID}/"
 
@@ -24,7 +24,7 @@ def get_bot_description() -> str:
     By default, attempts to get bot name from config
     and generate a basic description.
     """
-    bot_name: str = "MyBot"
+    bot_name: str = "The Juggerbot"
     if name := retrieve_value_from_config(MY_BOT_NAME):
         bot_name = name
 
