@@ -174,7 +174,6 @@ class MyBot(AresBot):
         if self.structures(UnitTypeId.SPAWNINGPOOL).ready:
             # Upgrade zergling speed
             if self.can_afford(UpgradeId.ZERGLINGMOVEMENTSPEED) and self.already_pending_upgrade(UpgradeId.ZERGLINGMOVEMENTSPEED) == 0:
-                await self.chat_send(time + "Upgrading zergling speed")
                 self.research(UpgradeId.ZERGLINGMOVEMENTSPEED)
             # Build queen 
             elif not self.units(UnitTypeId.QUEEN).amount == self.townhalls.amount and hq.is_idle:
@@ -186,11 +185,9 @@ class MyBot(AresBot):
         if den.ready and den.idle:
             # Upgrade hydra range
             if self.can_afford(UpgradeId.EVOLVEGROOVEDSPINES) and self.already_pending_upgrade(UpgradeId.EVOLVEGROOVEDSPINES) == 0:
-                await self.chat_send(time + "Upgrading hydra range")
                 self.research(UpgradeId.EVOLVEGROOVEDSPINES)
             # Upgrade hydra speed
             elif self.can_afford(UpgradeId.EVOLVEMUSCULARAUGMENTS) and self.already_pending_upgrade(UpgradeId.EVOLVEMUSCULARAUGMENTS) == 0:
-                await self.chat_send(time + "Upgrading hydra speed")
                 self.research(UpgradeId.EVOLVEMUSCULARAUGMENTS)
 
         ### TRAINING UNITS ###
@@ -254,7 +251,6 @@ class MyBot(AresBot):
                 and not self.already_pending(UnitTypeId.OVERSEER)
                 and self.units(UnitTypeId.OVERSEER).amount < 1
             ):
-                await self.chat_send(time +"Morphing overseer")
                 for ov in self.units(UnitTypeId.OVERLORD):
                     ov(AbilityId.MORPH_OVERSEER)
                     break
