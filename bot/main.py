@@ -1,10 +1,12 @@
-from typing import Optional
+from typing import Optional, Tuple
 from ares import AresBot
 from ares.consts import UnitRole
 from ares.behaviors.macro import Mining
 from ares.behaviors.macro import BuildStructure
 from ares.behaviors.macro import ExpansionController
 from ares.behaviors.macro import GasBuildingController
+from ares.behaviors.combat.individual import TumorSpreadCreep, StutterUnitForward, AMove, StutterUnitBack
+from ares.behaviors.macro import AutoSupply
 
 from sc2 import maps
 from sc2.bot_ai import BotAI
@@ -47,21 +49,28 @@ class MyBot(AresBot):
     async def on_step(self, iteration: int) -> None:
         await super(MyBot, self).on_step(iteration)
         larvae: Units = self.larva
-        hq: Unit = self.townhalls.first
+        hq: Unit = self.townhalls.first if self.townhalls else None
         enemy_pos = self.enemy_start_locations[0]
         time = self.time_formatted + " "
         clumping_distance = 7
 
         self.register_behavior(Mining())
+        self.register_behavior(AutoSupply(self.start_location))
 
         ### SCOUTING LOGIC ###
+        game_minute = int(self.time_formatted[1])
+        enemy_base_position: Point2 = self.mediator.get_enemy_expansions[0][0]
+        enemy_natural_position: Point2 = self.mediator.get_enemy_expansions[1][0]
 
         # Scout with overseers
         overseer = self.units(UnitTypeId.OVERSEER)
         for os in overseer:
             # Scout with overseer to enemy base
             if os.is_idle:
-                os.move(enemy_pos)
+                if (enemy_natural_position):
+                    os.move((enemy_natural_position + enemy_base_position) / 2)
+                else:
+                    os.move(enemy_pos)
             # If enemy is detected nearby, stay at range
             enemy_nearby = self.enemy_units.closer_than(15, os)
             if enemy_nearby:
@@ -74,18 +83,40 @@ class MyBot(AresBot):
                 if os.energy >= 30:
                     os(AbilityId.SPAWNCHANGELING_SPAWNCHANGELING)
 
+        # Scout natural with overlord
+        # Add starting overlord as scout
+        if self.units(UnitTypeId.OVERLORD).amount == 1:
+            self.mediator.assign_role(
+                tag=self.units(UnitTypeId.OVERLORD).first.tag,
+                role=UnitRole.SCOUTING
+            )
+        scouts = self.mediator.get_units_from_role(role=UnitRole.SCOUTING)
+        for scout in scouts:
+            if scout.is_idle:
+                if (enemy_natural_position):
+                    scout.move((enemy_natural_position + enemy_base_position) / 2)
+                else:
+                    scout.move(enemy_pos)
+            # If enemy is detected nearby, stay at range
+            enemy_nearby = self.enemy_units.closer_than(15, scout)
+            if enemy_nearby:
+                closest_enemy = enemy_nearby.closest_to(scout)
+                scout.move(scout.position.towards(closest_enemy.position, -2))
+
         # Spread out overlords
-        for overlord in self.units(UnitTypeId.OVERLORD).idle:
-            pos: Point2 = overlord.position.random_on_distance(5)
+        for overlord in self.units(UnitTypeId.OVERLORD):
             enemy_nearby = self.enemy_units.closer_than(15, overlord)
             if enemy_nearby:
                 # Retreat overlord
                 closest_enemy = enemy_nearby.closest_to(overlord)
                 overlord.move(overlord.position.towards(closest_enemy.position, -10))
-            else:
-                overlord.move(pos)
 
-        
+        # Spread creep
+        for tumor in self.structures(UnitTypeId.CREEPTUMORBURROWED):
+            self.register_behavior(
+                TumorSpreadCreep(tumor, self.enemy_start_locations[0])
+            )
+
         ### ECONOMY AND WORKER MANAGEMENT ###
 
         # Saturate gas
@@ -143,7 +174,7 @@ class MyBot(AresBot):
 
         # Upgrade to lair if spawning pool is complete
         if self.structures(UnitTypeId.SPAWNINGPOOL).ready and self.already_pending_upgrade(UpgradeId.ZERGLINGMOVEMENTSPEED) > 0 and self.units(UnitTypeId.QUEEN).amount >= 1:
-            if hq.is_idle and not self.townhalls(UnitTypeId.LAIR) and not self.already_pending(UnitTypeId.LAIR):
+            if hq and hq.is_idle and not self.townhalls(UnitTypeId.LAIR) and not self.already_pending(UnitTypeId.LAIR):
                 if self.can_afford(UnitTypeId.LAIR):
                     hq.build(UnitTypeId.LAIR)
 
@@ -176,7 +207,7 @@ class MyBot(AresBot):
             if self.can_afford(UpgradeId.ZERGLINGMOVEMENTSPEED) and self.already_pending_upgrade(UpgradeId.ZERGLINGMOVEMENTSPEED) == 0:
                 self.research(UpgradeId.ZERGLINGMOVEMENTSPEED)
             # Build queen 
-            elif not self.units(UnitTypeId.QUEEN).amount == self.townhalls.amount and hq.is_idle:
+            elif not self.units(UnitTypeId.QUEEN).amount == self.townhalls.amount and hq and hq.is_idle:
                 if self.can_afford(UnitTypeId.QUEEN):
                     hq.train(UnitTypeId.QUEEN)
         
@@ -211,28 +242,28 @@ class MyBot(AresBot):
 
         ## Overlord production logic
         # If supply is low, train overlords
-        if (
-            self.supply_left < 2
-            and larvae
-            and self.supply_cap < 200
-            and self.can_afford(UnitTypeId.OVERLORD)
-            and not self.already_pending(UnitTypeId.OVERLORD)
-        ):
-            larvae.random.train(UnitTypeId.OVERLORD)
-        # If supply cap over 30 we can train multiple overlords
-        if (
-            self.supply_left <= 5
-            and larvae
-            and self.supply_cap > 30 
-            and self.supply_cap < 200
-            and self.can_afford(UnitTypeId.OVERLORD)
-            and not self.already_pending(UnitTypeId.OVERLORD) > 1
-        ):
-            larvae.random.train(UnitTypeId.OVERLORD)
+        # if (
+        #     self.supply_left < 2
+        #     and larvae
+        #     and self.supply_cap < 200
+        #     and self.can_afford(UnitTypeId.OVERLORD)
+        #     and not self.already_pending(UnitTypeId.OVERLORD)
+        # ):
+        #     larvae.random.train(UnitTypeId.OVERLORD)
+        # # If supply cap over 30 we can train multiple overlords
+        # if (
+        #     self.supply_left <= 5
+        #     and larvae
+        #     and self.supply_cap > 30 
+        #     and self.supply_cap < 200
+        #     and self.can_afford(UnitTypeId.OVERLORD)
+        #     and not self.already_pending(UnitTypeId.OVERLORD) > 1
+        # ):
+        #     larvae.random.train(UnitTypeId.OVERLORD)
 
         # Extra queen when high on minerals and idle townhall
         if (
-            hq.is_idle
+            hq and hq.is_idle
             and self.structures(UnitTypeId.SPAWNINGPOOL).ready
             and self.minerals > 300
         ):
@@ -289,6 +320,7 @@ class MyBot(AresBot):
                             unit.move(pos)
 
         # Attack with lings and hydras if we have enough
+        # Switch roles if too many defenders
         if len(defenders) > 24:
             self.mediator.switch_roles(from_role=UnitRole.DEFENDING, to_role=UnitRole.ATTACKING)
         attacking_units: Units = self.mediator.get_units_from_role(
@@ -297,19 +329,29 @@ class MyBot(AresBot):
         if attacking_units:
             enemy_nearby = self.enemy_units.closer_than(20, attacking_units.center)
             if enemy_nearby:
-                for unit in attacking_units:
+                for unit in attacking_units(UnitTypeId.ZERGLING):
                     closest_enemy = enemy_nearby.closest_to(unit)
                     unit.attack(closest_enemy)
+                for unit in attacking_units(UnitTypeId.HYDRALISK):
+                    closest_enemy = enemy_nearby.closest_to(unit)
+                    if unit.health_percentage < 0.5:
+                        self.register_behavior(StutterUnitBack(unit, closest_enemy))
+                    else:
+                        self.register_behavior(StutterUnitForward(unit, closest_enemy))
             else:
-                if attacking_units.amount > 6:
+                if attacking_units.amount > 6: # Attack
                     for unit in attacking_units:
-                        if unit.position.distance_to(attacking_units.center) > clumping_distance:
+                        structures_nearby = self.enemy_structures.closer_than(20, unit.position)
+                        if unit.position.distance_to(attacking_units.center) > clumping_distance and not structures_nearby:
                             unit.move(attacking_units.center)  
                         else:
-                            unit.attack(enemy_pos)
-                else:
+                            self.register_behavior(AMove(unit, enemy_pos))
+                else: # Fallback
                     for unit in attacking_units:
-                        unit.move(attacking_units.center)  
+                        if defenders:
+                            unit.move(defenders.center)  
+                        else:
+                            unit.move(attacking_units.center)  
 
         # If all our townhalls are dead, send all our units to attack
         if not self.townhalls:
@@ -326,12 +368,15 @@ class MyBot(AresBot):
             self.mediator.assign_role(tag=unit.tag, role=UnitRole.DEFENDING)
 
         if unit.type_id == UnitTypeId.QUEEN:
-            queens = self.units(UnitTypeId.QUEEN)
-            if queens.amount > self.townhalls.amount:
+            inject_queens = self.mediator.get_units_from_role(role=UnitRole.QUEEN_INJECT)
+            if inject_queens.amount >= self.townhalls.amount:
                 self.mediator.assign_role(tag=unit.tag, role=UnitRole.QUEEN_CREEP)
             else:
                 self.mediator.assign_role(tag=unit.tag, role=UnitRole.QUEEN_INJECT)
 
+        scouts = self.mediator.get_units_from_role(role=UnitRole.SCOUTING)
+        if scouts.amount == 0 and unit.type_id == UnitTypeId.OVERLORD:
+            self.mediator.assign_role(tag=unit.tag, role=UnitRole.SCOUTING)
 
     # async def on_start(self) -> None:
     #     await super(MyBot, self).on_start()
