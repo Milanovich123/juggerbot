@@ -353,6 +353,18 @@ class MyBot(AresBot):
                         else:
                             unit.move(attacking_units.center)  
 
+        # Queen attack
+        creep_queens = self.mediator.get_units_from_role(role=UnitRole.QUEEN_CREEP)
+        if len(creep_queens) > 3:
+            for queen in creep_queens:
+                # if any queen is low then transfuse with another queen
+                if queen.health_percentage < 0.4:
+                    for other_queen in creep_queens:
+                        if other_queen.tag != queen.tag and other_queen.energy >= 50:
+                            other_queen(AbilityId.TRANSFUSION_TRANSFUSION, queen)
+                            break
+                self.register_behavior(AMove(queen, enemy_pos))
+
         # If all our townhalls are dead, send all our units to attack
         if not self.townhalls:
             for unit in self.units.of_type({UnitTypeId.DRONE, UnitTypeId.QUEEN, UnitTypeId.ZERGLING}):
