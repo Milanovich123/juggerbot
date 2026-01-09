@@ -65,6 +65,11 @@ class MyBot(AresBot):
         # Scout with overseers
         overseer = self.units(UnitTypeId.OVERSEER)
         for os in overseer:
+            # Follow ranged ally if nearby
+            attacking_nearby = self.mediator.get_units_from_role(role=UnitRole.ATTACKING).closer_than(15, os)
+            if attacking_nearby:
+                os.move(attacking_nearby.closest_to(os).position)
+                break
             # Scout with overseer to enemy base
             if os.is_idle:
                 if (enemy_natural_position):
@@ -353,17 +358,24 @@ class MyBot(AresBot):
                         else:
                             unit.move(attacking_units.center)  
 
-        # Queen attack
         creep_queens = self.mediator.get_units_from_role(role=UnitRole.QUEEN_CREEP)
         if len(creep_queens) > 3:
-            for queen in creep_queens:
+            # Switch roles from creep queen to attack queen
+            self.mediator.switch_roles(from_role=UnitRole.QUEEN_CREEP, to_role=UnitRole.QUEEN_OFFENSIVE)
+       
+        # Queen attack
+        offensive_queens = self.mediator.get_units_from_role(role=UnitRole.QUEEN_OFFENSIVE)
+        for queen in offensive_queens:
+            if queen.position.distance_to(offensive_queens.center) > clumping_distance:
+                    queen.move(offensive_queens.center)  
+            else:
                 # if any queen is low then transfuse with another queen
                 if queen.health_percentage < 0.4:
-                    for other_queen in creep_queens:
+                    for other_queen in offensive_queens:
                         if other_queen.tag != queen.tag and other_queen.energy >= 50:
                             other_queen(AbilityId.TRANSFUSION_TRANSFUSION, queen)
-                            break
-                self.register_behavior(AMove(queen, enemy_pos))
+                else:
+                    self.register_behavior(AMove(queen, enemy_pos))
 
         # If all our townhalls are dead, send all our units to attack
         if not self.townhalls:
